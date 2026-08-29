@@ -1,0 +1,363 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Inventory Management System</title>
+<style>
+:root{--p:#0f766e;--bg:#f3f6f8;--card:#fff;--text:#1f2937;--muted:#64748b;--danger:#dc2626}
+*{box-sizing:border-box}body{margin:0;font-family:Arial,sans-serif;background:var(--bg);color:var(--text)}
+header{height:64px;background:var(--p);color:#fff;display:flex;align-items:center;padding:0 20px;justify-content:space-between}
+.brand{font-size:20px;font-weight:700}.user{font-size:14px}
+.layout{display:flex;min-height:calc(100vh - 64px)}aside{width:220px;background:#fff;border-right:1px solid #e5e7eb;padding:14px}
+nav button{display:block;width:100%;text-align:left;background:transparent;color:#334155;margin:4px 0;padding:11px;border:0;border-radius:8px;cursor:pointer}
+nav button.active,nav button:hover{background:#dff5f1;color:var(--p);font-weight:bold}
+main{flex:1;padding:20px;max-width:1400px}.page{display:none}.page.active{display:block}.title{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px}
+.cards{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}.card,.panel{background:var(--card);border-radius:12px;padding:17px;box-shadow:0 2px 8px #0000000d;margin-bottom:16px}
+.label{font-size:13px;color:var(--muted)}.value{font-size:27px;font-weight:bold;margin-top:6px}
+.toolbar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}input,select,textarea{padding:10px;border:1px solid #d1d5db;border-radius:7px;background:white}button.primary,.primary{background:var(--p);color:#fff;border:0;padding:10px 13px;border-radius:7px;cursor:pointer;font-weight:600}button.gray{background:#64748b;color:#fff;border:0;padding:10px 13px;border-radius:7px;cursor:pointer}.danger{background:var(--danger)!important}
+.table{overflow:auto}table{width:100%;border-collapse:collapse;min-width:900px}th,td{padding:10px;border-bottom:1px solid #e5e7eb;text-align:left;font-size:14px}th{background:#f8fafc}
+.badge{padding:5px 8px;border-radius:999px;font-size:11px;font-weight:bold}.ok{background:#dcfce7;color:#166534}.low{background:#fef3c7;color:#92400e}.empty{background:#fee2e2;color:#991b1b}
+.modal{display:none;position:fixed;inset:0;background:#0008;align-items:center;justify-content:center;padding:15px;z-index:5}.modal.show{display:flex}.modalbox{width:min(650px,100%);background:#fff;border-radius:14px;padding:20px}.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}.field{display:flex;flex-direction:column;gap:5px}.full{grid-column:1/-1}.search-item{width:100%}.search-item input{width:100%}.actions{display:flex;justify-content:flex-end;gap:8px;margin-top:16px}
+.bar{height:22px;background:#e5e7eb;border-radius:20px;overflow:hidden}.bar span{display:block;height:100%;background:var(--p)}
+@media(max-width:800px){aside{width:64px;padding:8px}nav button{font-size:0;text-align:center}nav button:first-letter{font-size:20px}.cards{grid-template-columns:1fr 1fr}.grid{grid-template-columns:1fr}.full{grid-column:auto}}
+</style></head>
+<body>
+
+
+<header><div class="brand">📦 Inventory Eksplorasi Drilling</div><div class="user">Admin</div></header>
+<div class="layout">
+<aside><nav>
+<button class="active" data-page="dashboard">📊 Dashboard</button>
+<button data-page="barang">📦 Master Barang</button>
+<button data-page="masuk">➕ Barang Masuk</button>
+<button data-page="keluar">➖ Barang Keluar</button>
+<button data-page="supplier">🚚 Supplier</button>
+<button data-page="opname">🔍 Stock Opname</button>
+<button data-page="riwayat">📋 Riwayat</button>
+<button data-page="laporan">📑 Laporan</button>
+</nav></aside>
+<main>
+<section id="dashboard" class="page active"><div class="title"><h2>Dashboard</h2></div>
+<div class="cards">
+<div class="card"><div class="label">Jenis Barang</div><div id="dJenis" class="value">0</div></div>
+<div class="card"><div class="label">Total Stok</div><div id="dStok" class="value">0</div></div>
+<div class="card"><div class="label">Stok Menipis</div><div id="dLow" class="value">0</div></div>
+<div class="card"><div class="label">Nilai Persediaan</div><div id="dNilai" class="value">Rp0</div></div>
+</div>
+<div class="panel"><h3>Stok Menipis</h3><div id="lowList"></div></div>
+<div class="panel"><h3>Transaksi Terakhir</h3><div id="dashTrans"></div></div>
+</section>
+
+<section id="barang" class="page"><div class="title"><h2>Master Barang</h2><div>
+<button class="primary" onclick="openItem()">+ Tambah Barang</button>
+<button class="gray" onclick="document.getElementById('excelFile').click()">📥 Import Excel</button>
+<input id="excelFile" type="file" accept=".xlsx,.xls,.csv" style="display:none" onchange="importExcel(event)">
+</div></div>
+<div class="panel"><div class="toolbar"><input id="search" placeholder="Cari kode/nama/kategori" style="flex:1"><select id="catFilter"><option value="">Semua kategori</option></select></div>
+<div class="table"><table><thead><tr><th>Kode</th><th>Nama</th><th>Kategori</th><th>Satuan</th><th>Stok</th><th>Min</th><th>Harga</th><th>Status</th><th>Aksi</th></tr></thead><tbody id="itemTable"></tbody></table></div></div></section>
+
+<section id="masuk" class="page"><div class="title"><h2>Barang Masuk</h2></div>
+<div class="panel"><form id="inForm"><div class="grid"><div class="field"><label>Barang</label><input id="inItemSearch" list="inItemList" placeholder="🔎 Cari kode barang / nama / kategori..." autocomplete="off" required><datalist id="inItemList"></datalist><select id="inItem" required style="display:none"></select></div><div class="field"><label>Tanggal Transaksi</label><input id="inDate" type="date" required></div><div class="field"><label>Tanggal Input</label><input id="inInputDate" type="date" required></div><div class="field"><label>Jumlah</label><input id="inQty" type="number" min="1" required></div><div class="field full"><label>Keterangan</label><input id="inNote" placeholder="Contoh: Pembelian supplier"></div></div><div class="actions"><button class="primary">Simpan Barang Masuk</button></div></form></div>
+<div class="panel" style="margin-top:16px"><div class="toolbar"><input id="searchIn" placeholder="Cari kode/nama/kategori" style="flex:1"><button type="button" class="primary" onclick="cariTransaksi('IN')">🔎 Cari</button><button type="button" class="gray" onclick="resetCariTransaksi('IN')">Reset</button></div>
+<div class="table" style="margin-top:12px"><table><thead><tr><th>Tanggal Transaksi</th><th>Tanggal Input</th><th>Kode</th><th>Barang</th><th>Kategori</th><th>Qty</th><th>Keterangan</th><th>Aksi</th></tr></thead><tbody id="inTransTable"></tbody></table></div></div></section>
+
+<section id="keluar" class="page"><div class="title"><h2>Barang Keluar</h2></div>
+<div class="panel"><form id="outForm"><div class="grid"><div class="field"><label>Barang</label><input id="outItemSearch" list="outItemList" placeholder="🔎 Cari kode barang / nama / kategori..." autocomplete="off" required><datalist id="outItemList"></datalist><select id="outItem" required style="display:none"></select></div><div class="field"><label>Tanggal Transaksi</label><input id="outDate" type="date" required></div><div class="field"><label>Tanggal Input</label><input id="outInputDate" type="date" required></div><div class="field"><label>Jumlah</label><input id="outQty" type="number" min="1" required></div><div class="field full"><label>Keterangan</label><input id="outNote" placeholder="Contoh: Pengambilan user/department"></div></div><div class="actions"><button class="primary">Simpan Barang Keluar</button></div></form></div>
+<div class="panel" style="margin-top:16px"><div class="toolbar"><input id="searchOut" placeholder="Cari kode/nama/kategori" style="flex:1"><button type="button" class="primary" onclick="cariTransaksi('OUT')">🔎 Cari</button><button type="button" class="gray" onclick="resetCariTransaksi('OUT')">Reset</button></div>
+<div class="table" style="margin-top:12px"><table><thead><tr><th>Tanggal Transaksi</th><th>Tanggal Input</th><th>Kode</th><th>Barang</th><th>Kategori</th><th>Qty</th><th>Keterangan</th><th>Aksi</th></tr></thead><tbody id="outTransTable"></tbody></table></div></div></section>
+
+<section id="supplier" class="page"><div class="title"><h2>Supplier</h2><button class="primary" onclick="openSupplier()">+ Tambah Supplier</button></div><div class="panel"><div class="table"><table><thead><tr><th>Nama</th><th>Telepon</th><th>Alamat</th><th>Aksi</th></tr></thead><tbody id="supTable"></tbody></table></div></div></section>
+
+<section id="opname" class="page"><div class="title"><h2>Stock Opname</h2></div><div class="panel"><p>Gunakan menu ini untuk mencocokkan stok fisik dengan stok sistem.</p><div class="table"><table><thead><tr><th>Kode</th><th>Barang</th><th>Stok Sistem</th><th>Stok Fisik</th><th>Selisih</th><th>Aksi</th></tr></thead><tbody id="opTable"></tbody></table></div></div></section>
+
+<section id="riwayat" class="page"><div class="title"><h2>Riwayat Transaksi</h2></div><div class="panel"><div class="table"><table><thead><tr><th>Tanggal Transaksi</th><th>Tanggal Input</th><th>Tipe</th><th>Barang</th><th>Qty</th><th>Keterangan</th><th>Aksi</th></tr></thead><tbody id="transTable"></tbody></table></div></div></section>
+
+<section id="laporan" class="page"><div class="title"><h2>Laporan</h2></div><div class="panel"><p>Download data inventory untuk pengolahan lebih lanjut.</p><button class="primary" onclick="exportItems()">Export Master Barang CSV</button> <button class="gray" onclick="exportTrans()">Export Transaksi CSV</button></div></section>
+</main></div>
+
+<div class="modal" id="itemModal"><div class="modalbox"><h2 id="itemTitle">Tambah Barang</h2><input id="itemIdx" type="hidden"><div class="grid">
+<div class="field"><label>Kode Barang</label><input id="code"></div><div class="field"><label>Nama Barang</label><input id="name"></div>
+<div class="field"><label>Kategori</label><input id="category"></div><div class="field"><label>Satuan</label><select id="unit"><option>pcs</option><option>unit</option><option>box</option><option>rim</option><option>set</option><option>kg</option><option>liter</option></select></div>
+<div class="field"><label>Stok Awal</label><input id="stock" type="number" min="0"></div><div class="field"><label>Stok Minimum</label><input id="minStock" type="number" min="0"></div>
+<div class="field full"><label>Harga Satuan</label><input id="price" type="number" min="0"></div></div><div class="actions"><button class="gray" onclick="closeModal('itemModal')">Batal</button><button class="primary" onclick="saveItem()">Simpan</button></div></div></div>
+
+<div class="modal" id="supModal"><div class="modalbox"><h2>Tambah Supplier</h2><div class="grid"><div class="field full"><label>Nama</label><input id="supName"></div><div class="field"><label>Telepon</label><input id="supPhone"></div><div class="field"><label>Alamat</label><input id="supAddress"></div></div><div class="actions"><button class="gray" onclick="closeModal('supModal')">Batal</button><button class="primary" onclick="saveSupplier()">Simpan</button></div></div></div>
+
+<script>
+const KEY="inventory_complete_html";
+let db=JSON.parse(localStorage.getItem(KEY)||"null")||{
+items:[
+{code:"BRG-001",name:"Kertas A4",cat:"ATK",unit:"rim",stock:25,min:10,price:55000},
+{code:"BRG-002",name:"Tinta Printer",cat:"ATK",unit:"pcs",stock:8,min:5,price:125000},
+{code:"BRG-003",name:"Helm Safety",cat:"APD",unit:"pcs",stock:3,min:5,price:85000}],
+suppliers:[{name:"PT Sumber Makmur",phone:"08123456789",address:"Jakarta"}],trans:[]
+};
+const $=id=>document.getElementById(id),rp=n=>new Intl.NumberFormat("id-ID",{style:"currency",currency:"IDR",maximumFractionDigits:0}).format(n);
+const esc=s=>String(s??"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[m]));
+function save(){localStorage.setItem(KEY,JSON.stringify(db))}
+document.querySelectorAll("nav button").forEach(b=>b.onclick=()=>{document.querySelectorAll("nav button").forEach(x=>x.classList.remove("active"));b.classList.add("active");document.querySelectorAll(".page").forEach(x=>x.classList.remove("active"));$(b.dataset.page).classList.add("active");render()});
+function status(x){return x.stock===0?["KOSONG","empty"]:x.stock<=x.min?["MENIPIS","low"]:["AMAN","ok"]}
+function render(){
+ $("dJenis").textContent=db.items.length;$("dStok").textContent=db.items.reduce((a,x)=>a+x.stock,0);$("dLow").textContent=db.items.filter(x=>x.stock<=x.min).length;$("dNilai").textContent=rp(db.items.reduce((a,x)=>a+x.stock*x.price,0));
+ let low=db.items.filter(x=>x.stock<=x.min);$("lowList").innerHTML=low.length?low.map(x=>`<p>⚠️ <b>${esc(x.name)}</b> — stok ${x.stock}, minimum ${x.min}</p>`).join(""):"<p>Semua stok aman.</p>";
+ $("dashTrans").innerHTML=db.trans.slice(-5).reverse().map(t=>`<p>${t.type==="IN"?"➕":"➖"} ${esc(t.item)} — ${t.qty} — ${esc(t.note||"-")} <small>${t.date}</small></p>`).join("")||"<p>Belum ada transaksi.</p>";
+ let q=($("search")?.value||"").toLowerCase(),cat=$("catFilter")?.value||"";
+ let list=db.items.filter(x=>(!q||(x.code+" "+x.name+" "+x.cat).toLowerCase().includes(q))&&(!cat||x.cat===cat));
+ $("itemTable").innerHTML=list.map(x=>{let i=db.items.indexOf(x),s=status(x);return `<tr><td>${esc(x.code)}</td><td>${esc(x.name)}</td><td>${esc(x.cat)}</td><td>${esc(x.unit)}</td><td>${x.stock}</td><td>${x.min}</td><td>${rp(x.price)}</td><td><span class="badge ${s[1]}">${s[0]}</span></td><td><button class="primary" onclick="editItem(${i})">Edit</button> <button class="primary danger" onclick="delItem(${i})">Hapus</button></td></tr>`}).join("");
+ let cats=[...new Set(db.items.map(x=>x.cat).filter(Boolean))],old=cat;$("catFilter").innerHTML='<option value="">Semua kategori</option>'+cats.map(x=>`<option>${esc(x)}</option>`).join("");$("catFilter").value=cats.includes(old)?old:"";
+ let opts=db.items.map((x,i)=>`<option value="${i}">${esc(x.code)} - ${esc(x.name)} (stok ${x.stock})</option>`).join("");$("inItem").innerHTML=opts;$("outItem").innerHTML=opts;
+ let searchOpts=db.items.map(x=>`<option value="${esc(x.code)} - ${esc(x.name)} [${esc(x.cat)}]"></option>`).join("");
+ $("inItemList").innerHTML=searchOpts;$("outItemList").innerHTML=searchOpts;
+ $("supTable").innerHTML=db.suppliers.map((s,i)=>`<tr><td>${esc(s.name)}</td><td>${esc(s.phone)}</td><td>${esc(s.address)}</td><td><button class="primary danger" onclick="delSup(${i})">Hapus</button></td></tr>`).join("");
+ $("opTable").innerHTML=db.items.map((x,i)=>`<tr><td>${esc(x.code)}</td><td>${esc(x.name)}</td><td>${x.stock}</td><td><input id="phys${i}" type="number" min="0" value="${x.stock}"></td><td id="diff${i}">0</td><td><button class="primary" onclick="opname(${i})">Simpan</button></td></tr>`).join("");
+ $("transTable").innerHTML=db.trans.map((t,i)=>`<tr><td>${esc(t.date||"-")}</td><td>${esc(t.inputDate||"-")}</td><td>${t.type==="IN"?"Barang Masuk":"Barang Keluar"}</td><td>${esc(t.item)}</td><td>${t.qty}</td><td>${esc(t.note||"-")}</td><td><button class="primary danger" onclick="delTrans(${i})">Hapus</button></td></tr>`).reverse().join("");
+  renderTransaksiCari("IN");
+  renderTransaksiCari("OUT");
+}
+function renderTransaksiCari(type, query=""){
+  const target=$(type==="IN"?"inTransTable":"outTransTable");
+  if(!target)return;
+  const q=(query||"").trim().toLowerCase();
+  target.innerHTML=db.trans.slice().reverse().filter(t=>t.type===type).filter(t=>{
+    const item=db.items.find(x=>x.name===t.item)||{};
+    const text=[item.code,item.name,item.cat,t.note].join(" ").toLowerCase();
+    return !q || text.includes(q);
+  }).map(t=>{
+    const item=db.items.find(x=>x.name===t.item)||{};
+    return `<tr><td>${esc(t.date||"-")}</td><td>${esc(t.inputDate||"-")}</td><td>${esc(item.code||"-")}</td><td>${esc(t.item||"-")}</td><td>${esc(item.cat||"-")}</td><td>${t.qty}</td><td>${esc(t.note||"-")}</td><td><button class="primary danger" onclick="delTrans(${db.trans.indexOf(t)})">Hapus</button></td></tr>`;
+  }).join("");
+}
+function cariTransaksi(type){
+  const q=$(type==="IN"?"searchIn":"searchOut").value.trim().toLowerCase();
+  renderTransaksiCari(type,q);
+}
+function resetCariTransaksi(type){
+  const k=$(type==="IN"?"searchIn":"searchOut");
+  k.value=""; renderTransaksiCari(type);
+}
+function bindItemSearch(type){
+ const input=$(type+"ItemSearch"),sel=$(type+"Item");
+ if(!input||!sel||input.dataset.bound)return;
+ input.dataset.bound="1";
+ input.addEventListener("input",function(){
+   const q=this.value.trim().toLowerCase(); let found=-1;
+   db.items.some((x,i)=>{
+     const display=`${x.code} - ${x.name} [${x.cat||""}]`.toLowerCase();
+     if(display===q || x.code.toLowerCase()===q || x.name.toLowerCase()===q){found=i;return true} return false;
+   });
+   sel.value=found>=0?String(found):"";
+   this.setCustomValidity(found>=0?"":"Pilih barang berdasarkan kode, nama, atau kategori dari daftar.");
+ });
+ input.addEventListener("focus",function(){this.select()});
+}
+bindItemSearch("in");bindItemSearch("out");
+function openItem(i=null){$("itemModal").classList.add("show");$("itemIdx").value=i===null?"":i;$("itemTitle").textContent=i===null?"Tambah Barang":"Edit Barang";if(i===null){["code","name","category"].forEach(x=>$(x).value="");$("unit").value="pcs";$("stock").value=0;$("minStock").value=0;$("price").value=0}else{let x=db.items[i];$("code").value=x.code;$("name").value=x.name;$("category").value=x.cat;$("unit").value=x.unit;$("stock").value=x.stock;$("minStock").value=x.min;$("price").value=x.price}}
+function closeModal(id){$(id).classList.remove("show")}
+function saveItem(){let x={code:$("code").value.trim(),name:$("name").value.trim(),cat:$("category").value.trim(),unit:$("unit").value,stock:+$("stock").value,min:+$("minStock").value,price:+$("price").value};if(!x.code||!x.name)return alert("Kode dan nama wajib diisi.");let i=$("itemIdx").value;if(i==="")db.items.push(x);else db.items[+i]=x;save();closeModal("itemModal");render()}
+function editItem(i){openItem(i)}function delItem(i){if(confirm("Hapus barang?")){db.items.splice(i,1);save();render()}}
+function openSupplier(){$("supModal").classList.add("show");["supName","supPhone","supAddress"].forEach(x=>$(x).value="")}
+function saveSupplier(){if(!$("supName").value.trim())return alert("Nama supplier wajib diisi.");db.suppliers.push({name:$("supName").value.trim(),phone:$("supPhone").value.trim(),address:$("supAddress").value.trim()});save();closeModal("supModal");render()}
+function delSup(i){if(confirm("Hapus supplier?")){db.suppliers.splice(i,1);save();render()}}
+function localDateTime(){const d=new Date(),p=n=>String(n).padStart(2,"0");return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`}
+function formatDate(v){if(!v)return "-";const d=new Date(v);return isNaN(d)?String(v):d.toLocaleDateString("id-ID")}
+function setDefaultDates(){
+  // Sengaja dikosongkan: tanggal transaksi dan tanggal input harus dipilih/diisi manual.
+  if($("inDate"))$("inDate").value="";
+  if($("outDate"))$("outDate").value="";
+  if($("inInputDate"))$("inInputDate").value="";
+  if($("outInputDate"))$("outInputDate").value="";
+}
+function addTrans(type){
+  let isIn=type==="IN";
+  let sel=$(isIn?"inItem":"outItem");
+  let qty=+(isIn?$("inQty").value:$("outQty").value);
+  let note=$(isIn?"inNote":"outNote").value.trim();
+  let date=$(isIn?"inDate":"outDate").value;
+  let inputDate=$(isIn?"inInputDate":"outInputDate").value;
+  let i=+sel.value,x=db.items[i];
+
+  if(!date)return alert("Tanggal transaksi wajib diisi.");
+  if(!inputDate)return alert("Tanggal input wajib diisi secara manual.");
+  if(!qty||qty<1)return alert("Jumlah harus lebih dari 0.");
+  if(type==="OUT"&&qty>x.stock)return alert("Stok tidak mencukupi.");
+
+  x.stock+=isIn?qty:-qty;
+  db.trans.push({
+    date:date?new Date(date+"T00:00:00").toLocaleDateString("id-ID"):"-",
+    inputDate:inputDate?new Date(inputDate+"T00:00:00").toLocaleDateString("id-ID"):"-",
+    inputDateTime:localDateTime(),
+    type,item:x.name,qty,note
+  });
+  save();
+  $(isIn?"inForm":"outForm").reset();
+  const si=$(isIn?"inItemSearch":"outItemSearch"), ss=$(isIn?"inItem":"outItem"); if(si){si.value="";si.setCustomValidity("")} if(ss)ss.value="";
+  render();
+  alert("Transaksi berhasil disimpan.");
+}
+$("inForm").onsubmit=e=>{e.preventDefault();addTrans("IN")};$("outForm").onsubmit=e=>{e.preventDefault();addTrans("OUT")};
+function delTrans(i){
+  const t=db.trans[i];
+  if(!t) return;
+  if(!confirm("Hapus catatan riwayat ini?\n\n"+(t.type==="IN"?"Barang Masuk":"Barang Keluar")+" - "+t.item+" - Qty "+t.qty)) return;
+  // Reverse the stock impact of the deleted transaction.
+  const item=db.items.find(x=>x.name===t.item);
+  if(item){
+    if(t.type==="IN") item.stock=Math.max(0,item.stock-t.qty);
+    else item.stock+=t.qty;
+  }
+  db.trans.splice(i,1);
+  save();
+  render();
+}
+function opname(i){let x=db.items[i],phys=+$("phys"+i).value;if(phys<0)return;let diff=phys-x.stock;if(diff!==0){db.trans.push({date:new Date().toLocaleDateString("id-ID"),inputDateTime:localDateTime(),type:diff>0?"IN":"OUT",item:x.name,qty:Math.abs(diff),note:"Penyesuaian Stock Opname"});x.stock=phys;save();render();alert("Stock opname disimpan.")}}
+
+async function importExcel(event){
+  const file=event.target.files[0];
+  event.target.value="";
+  if(!file)return;
+  const ext=file.name.toLowerCase().split(".").pop();
+  try{
+    if(ext==="csv"){
+      const text=await file.text();
+      const rows=parseCSV(text);
+      importRows(rows);
+      return;
+    }
+    if(ext==="xlsx"||ext==="xls"){
+      if(typeof XLSX==="undefined"){
+        alert("Untuk import .xlsx/.xls, tambahkan file library SheetJS (xlsx.full.min.js) di folder yang sama dengan HTML. File CSV tetap bisa diimport tanpa library.");
+        return;
+      }
+      const data=await file.arrayBuffer();
+      const wb=XLSX.read(data,{type:"array"});
+      const ws=wb.Sheets[wb.SheetNames[0]];
+      importRows(XLSX.utils.sheet_to_json(ws,{header:1,defval:""}));
+      return;
+    }
+    alert("Format tidak didukung.");
+  }catch(e){alert("Gagal membaca file: "+e.message)}
+}
+function parseCSV(text){
+  const rows=[];let row=[],cell="",quote=false;
+  for(let i=0;i<text.length;i++){
+    const ch=text[i],next=text[i+1];
+    if(ch==='"'&&quote&&next==='"'){cell+='"';i++;continue}
+    if(ch==='"'){quote=!quote;continue}
+    if(ch===","&&!quote){row.push(cell);cell="";continue}
+    if((ch==="\n"||ch==="\r")&&!quote){
+      if(ch==="\r"&&next==="\n")i++;
+      row.push(cell);cell="";
+      if(row.some(v=>String(v).trim()!==""))rows.push(row);
+      row=[];continue;
+    }
+    cell+=ch;
+  }
+  if(cell!==""||row.length){row.push(cell);if(row.some(v=>String(v).trim()!==""))rows.push(row)}
+  return rows;
+}
+function importRows(rows){
+  if(!rows||rows.length<2){alert("Data Excel kosong atau tidak memiliki baris data.");return}
+  const headers=rows[0].map(h=>String(h).trim().toLowerCase());
+  const find=(...names)=>{for(const n of names){const i=headers.indexOf(n);if(i>=0)return i}return -1};
+  const idx={
+    code:find("kode","kode barang","code"),
+    name:find("nama","nama barang","name"),
+    cat:find("kategori","category","cat"),
+    unit:find("satuan","unit"),
+    stock:find("stok","stock"),
+    min:find("min","stok minimum","minimum"),
+    price:find("harga","harga satuan","price")
+  };
+  if(idx.code<0||idx.name<0){
+    alert("Kolom wajib tidak ditemukan. Gunakan header: Kode, Nama, Kategori, Satuan, Stok, Min, Harga.");
+    return;
+  }
+  let added=0,updated=0;
+  rows.slice(1).forEach(r=>{
+    const code=String(r[idx.code]??"").trim(),name=String(r[idx.name]??"").trim();
+    if(!code||!name)return;
+    const item={
+      code,name,
+      cat:String(r[idx.cat]??"").trim(),
+      unit:String(r[idx.unit]??"pcs").trim()||"pcs",
+      stock:Math.max(0,Number(r[idx.stock]??0)||0),
+      min:Math.max(0,Number(r[idx.min]??0)||0),
+      price:Math.max(0,Number(String(r[idx.price]??0).replace(/[^\d.-]/g,""))||0)
+    };
+    const old=db.items.find(x=>x.code===code);
+    if(old){Object.assign(old,item);updated++}
+    else{db.items.push(item);added++}
+  });
+  save();render();
+  alert(`Import berhasil. ${added} barang baru, ${updated} barang diperbarui.`);
+}
+function csv(rows,name){let c=rows.map(r=>r.map(v=>`"${String(v??"").replaceAll('"','""')}"`).join(",")).join("\n"),a=document.createElement("a");a.href=URL.createObjectURL(new Blob([c],{type:"text/csv;charset=utf-8"}));a.download=name;a.click()}
+function exportItems(){csv([["Kode","Nama","Kategori","Satuan","Stok","Min","Harga"],...db.items.map(x=>[x.code,x.name,x.cat,x.unit,x.stock,x.min,x.price])],"master_barang.csv")}
+function exportTrans(){csv([["Tanggal Transaksi","Tanggal Input","Tipe","Barang","Qty","Keterangan"],...db.trans.map(t=>[t.date,t.inputDate||"-",t.type,t.item,t.qty,t.note])],"riwayat_transaksi.csv")}
+$("search").oninput=render;$("catFilter").onchange=render;render();setDefaultDates();
+</script>
+<div style="position:fixed;bottom:0;left:0;right:0;text-align:center;font-size:11px;color:#64748b;background:#ffffffcc;padding:5px;z-index:4">Inventory Eksplorasi Drilling • Siap Pakai • Data tersimpan di browser</div>
+</body></html>
+
+
+<script>
+(function () {
+  function norm(v) {
+    return (v || '').toString().trim().toLowerCase();
+  }
+
+  function getCellIndex(headers, names) {
+    for (var i=0; i<headers.length; i++) {
+      var h = norm(headers[i].textContent);
+      for (var j=0; j<names.length; j++) {
+        if (h.includes(names[j])) return i;
+      }
+    }
+    return -1;
+  }
+
+  function filterTables() {
+    var kode = norm(document.getElementById('searchKode')?.value);
+    var kategori = norm(document.getElementById('searchKategori')?.value);
+
+    document.querySelectorAll('table').forEach(function(table) {
+      var rows = table.querySelectorAll('tbody tr');
+      if (!rows.length) return;
+
+      var headers = table.querySelectorAll('thead th');
+      if (!headers.length) {
+        headers = table.querySelectorAll('tr:first-child th, tr:first-child td');
+      }
+
+      var kodeIdx = getCellIndex(headers, ['kode','code','item code']);
+      var katIdx = getCellIndex(headers, ['kategori','category']);
+
+      rows.forEach(function(row) {
+        var cells = row.querySelectorAll('td');
+        var kodeText = kodeIdx >= 0 && cells[kodeIdx] ? norm(cells[kodeIdx].textContent) : norm(row.textContent);
+        var katText = katIdx >= 0 && cells[katIdx] ? norm(cells[katIdx].textContent) : norm(row.textContent);
+
+        var okKode = !kode || kodeText.includes(kode);
+        var okKategori = !kategori || katText.includes(kategori);
+        row.style.display = (okKode && okKategori) ? '' : 'none';
+      });
+    });
+  }
+
+  document.addEventListener('input', function(e) {
+    if (e.target && (e.target.id === 'searchKode' || e.target.id === 'searchKategori')) {
+      filterTables();
+    }
+  });
+
+  document.addEventListener('click', function(e) {
+    if (e.target && e.target.id === 'clearSearchKodeKategori') {
+      document.getElementById('searchKode').value = '';
+      document.getElementById('searchKategori').value = '';
+      filterTables();
+    }
+  });
+
+  window.addEventListener('DOMContentLoaded', filterTables);
+})();
+</script>
